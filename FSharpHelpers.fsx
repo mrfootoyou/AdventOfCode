@@ -902,14 +902,17 @@ module Grid =
         else
             Some(grid[y][x])
 
-    let tryItemV (x: XCoord) (y: YCoord) (grid: Grid<'T>) =
+    let inline tryItemV (x: XCoord) (y: YCoord) (grid: Grid<'T>) =
         if y < 0 || x < 0 || y >= grid.Length || x >= grid[y].Length then
             ValueNone
         else
             ValueSome(grid[y][x])
 
-    let itemOrDefault (x: XCoord) (y: YCoord) defValue (grid: Grid<'T>) =
-        tryItemV x y grid |> ValueOption.defaultValue defValue
+    let inline itemOrDefault (x: XCoord) (y: YCoord) defValue (grid: Grid<'T>) =
+        if y < 0 || x < 0 || y >= grid.Length || x >= grid[y].Length then
+            defValue
+        else
+            grid[y][x]
 
     let inline set (x: XCoord) (y: YCoord) value (grid: Grid<'T>) = grid[y][x] <- value
 
@@ -1033,6 +1036,34 @@ module Grid =
                     yield (x, y), (grid[y][x])
         }
 
+    /// Breadth-first flood fill. Stack-safe at the expense of speed and memory.
+    let floodFn x y fn grid =
+        let oldValue = grid |> item x y
+
+        let next x y =
+            [ (x + 1, y); (x - 1, y); (x, y + 1); (x, y - 1) ]
+
+        let rec loop points =
+            match points with
+            | [] -> () // done
+            | (x, y) :: tail ->
+                match grid |> tryItemV x y with
+                | ValueSome n when n = oldValue ->
+                    let newValue = fn (x, y)
+
+                    if newValue = oldValue then
+                        // ignore this position to avoid infinite loop
+                        tail
+                    else
+                        grid |> set x y newValue
+                        next x y @ tail
+                | _ -> tail
+                |> loop
+
+        [ (x, y) ] |> loop
+
+    /// Breadth-first flood fill. Stack-safe at the expense of speed and memory.
+    let flood x y color grid = grid |> floodFn x y (fun _ -> color)
 
     /// Convert the grid to a multiline string. Element are separated with the given separator string.
     let stringize (separator: string) (grid: Grid<'T>) =
