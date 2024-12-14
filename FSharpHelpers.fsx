@@ -6,14 +6,16 @@ let inline tee ([<InlineIfLambda>] fn) x =
 
 let inline dump x =
 #if INTERACTIVE
-    tee (printfn "%A") x
+    // use sprintf to avoid "tearing"
+    tee (sprintf "%A" >> Console.WriteLine) x
 #else
     LINQPad.Extensions.Dump(x)
 #endif
 
 let inline dumps (heading: string) x =
 #if INTERACTIVE
-    tee (printfn "%s: %A" heading) x
+    // use sprintf to avoid "tearing"
+    tee (sprintf "%s: %A" heading >> Console.WriteLine) x
 #else
     LINQPad.Extensions.Dump(heading, x)
 #endif
