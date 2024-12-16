@@ -24,6 +24,44 @@ let trace = dump
 let echo = dump
 let echos = dumps
 
+let scriptPath =
+#if INTERACTIVE
+    fsi.CommandLineArgs[0]
+#else
+    LINQPad.Util.CurrentQueryPath
+#endif
+
+/// Downloads puzzle input as a string.
+/// Assumes script file is named "./{Year}/Day {day}.fsx" and
+/// cookie.txt exists in repo root.
+let downloadInput () =
+    let fi = IO.FileInfo(scriptPath)
+    let year = fi.Directory.Name |> int
+
+    let day =
+        IO.Path.GetFileNameWithoutExtension(fi.Name).Split(' ') |> Array.last |> int
+
+    let cookiePath = IO.Path.Join(fi.Directory.Parent.FullName, "cookie.txt")
+    let cookie = IO.File.ReadAllLines(cookiePath)[0]
+
+    use client = new Net.Http.HttpClient()
+    client.DefaultRequestHeaders.Add("cookie", cookie.Trim())
+
+    client.GetStringAsync($"https://adventofcode.com/{year}/day/{day}/input")
+    |> Async.AwaitTask
+    |> Async.RunSynchronously
+
+/// Returns the path of the file containing puzzle input.
+let getInput () =
+    let inputFilePath = IO.Path.ChangeExtension(scriptPath, ".txt")
+
+    if not (IO.File.Exists(inputFilePath)) then
+        let input = downloadInput ()
+        IO.File.WriteAllText(inputFilePath, input)
+
+    IO.File.ReadAllText(inputFilePath)
+
+
 let test oper operName title expected actual =
     if not (oper expected actual) then
         failwithf "%s should %s [%A] but is [%A]." title operName expected actual
@@ -49,15 +87,14 @@ let summatorial n = (n * (n + 1)) / 2
 /// Returns `(b, a)` if the `condition` is true, otherwise `(a, b)`.
 let inline swapIf condition a b = if condition then (b, a) else (a, b)
 
-/// Returns `(b, a)` if the `conditionf` returns true, otherwise `(a, b)`.
-let inline swapWhen ([<InlineIfLambda>] conditionf) a b =
-    if conditionf () then (b, a) else (a, b)
+/// Returns `(b, a)` if the predicate returns true, otherwise `(a, b)`.
+let inline swapWhen ([<InlineIfLambda>] pred) a b = if pred () then (b, a) else (a, b)
 
 /// Converts the given digit character ('0'..'9') to its numeric equivalent (0..9).
 let digitToInt (c: char) =
     match int c with
     | n when (int '0') <= n && n <= (int '9') -> n - (int '0')
-    | _ -> failwithf "Invalid decimal digit: %A" c
+    | _ -> invalidArg (nameof c) (sprintf "Invalid decimal digit: %A" c)
 
 /// Converts the given hexdigit character ('0'..'F') to its numeric equivalent (0..15).
 let hexDigitToInt (c: char) =
@@ -65,7 +102,7 @@ let hexDigitToInt (c: char) =
     | n when (int '0') <= n && n <= (int '9') -> n - (int '0')
     | n when (int 'A') <= n && n <= (int 'F') -> n - (int 'A') + 10
     | n when (int 'a') <= n && n <= (int 'f') -> n - (int 'a') + 10
-    | _ -> failwithf "Invalid hex digit: %A" c
+    | _ -> invalidArg (nameof c) (sprintf "Invalid hex digit: %A" c)
 
 let (|DecChar|) = digitToInt
 let (|HexChar|) = hexDigitToInt
@@ -79,6 +116,103 @@ let factorial n =
 
     assert (n >= 0)
     fact n
+
+type XCoord = int
+type YCoord = int
+/// The X-Y coordinates of a grid position.
+type Coordinate2D = (XCoord * YCoord)
+type Coordinates = Coordinate2D
+
+[<Struct>]
+type Compass =
+    | North
+    | South
+    | East
+    | West
+
+[<Struct>]
+type Direction =
+    | Up
+    | Down
+    | Right
+    | Left
+
+module Direction =
+    let toCompass dir =
+        match dir with
+        | Up -> North
+        | Down -> South
+        | Right -> East
+        | Left -> West
+
+    let fromCompass cd =
+        match cd with
+        | North -> Up
+        | South -> Down
+        | East -> Right
+        | West -> Left
+
+    let reverse dir =
+        match dir with
+        | Up -> Down
+        | Down -> Up
+        | Right -> Left
+        | Left -> Right
+
+    let turn leftOrRight dir =
+        match leftOrRight with
+        | Left ->
+            match dir with
+            | Up -> Left
+            | Down -> Right
+            | Right -> Up
+            | Left -> Down
+        | Right ->
+            match dir with
+            | Up -> Right
+            | Down -> Left
+            | Right -> Down
+            | Left -> Up
+        | _ -> invalidArg (nameof leftOrRight) ""
+
+    let inline turnLeft dir = turn Left dir
+    let inline turnRight dir = turn Right dir
+
+    /// Turn clockwise in 90deg increments.
+    /// Degrees can be negative or even greater than 360.
+    let rotate degrees dir =
+        match (360 + (degrees % 360)) % 360 with
+        | 0 -> dir
+        | 90 -> turnRight dir
+        | 180 -> reverse dir
+        | 270 -> turnLeft dir
+        | _ -> invalidArg (nameof degrees) "Rotation angle must be a multiple of 90 degrees."
+
+    /// Returns a unit vector for the given direction.
+    /// Uses "screen" coordinates where Up is (0,-1) and Right is (+1,0).
+    let delta dir : Coordinates =
+        match dir with
+        | Up -> (0, -1)
+        | Down -> (0, +1)
+        | Right -> (+1, 0)
+        | Left -> (-1, 0)
+
+    let inline (|Delta|) dir = delta dir
+
+    let toArrow dir =
+        match dir with
+        | Up -> '^'
+        | Down -> 'v'
+        | Right -> '>'
+        | Left -> '<'
+
+    let fromArrow char =
+        match char with
+        | '^' -> Up
+        | 'v' -> Down
+        | '>' -> Right
+        | '<' -> Left
+        | _ -> invalidArg (nameof char) "Unexpected arrow character."
 
 module String =
     open System.Text.RegularExpressions
@@ -349,84 +483,6 @@ module Seq =
                 values <- tail
         }
 
-let scriptPath =
-#if INTERACTIVE
-    fsi.CommandLineArgs[0]
-#else
-    LINQPad.Util.CurrentQueryPath
-#endif
-
-/// Downloads puzzle input as a string.
-/// Assumes script file is named "./{Year}/Day {day}.fsx" and
-/// cookie.txt exists in repo root.
-let downloadInput () =
-    let fi = IO.FileInfo(scriptPath)
-    let year = fi.Directory.Name |> int
-
-    let day =
-        IO.Path.GetFileNameWithoutExtension(fi.Name)
-        |> String.split " "
-        |> Array.last
-        |> int
-
-    let cookiePath = IO.Path.Join(fi.Directory.Parent.FullName, "cookie.txt")
-    let cookie = IO.File.ReadAllLines(cookiePath)[0]
-
-    use client = new Net.Http.HttpClient()
-    client.DefaultRequestHeaders.Add("cookie", cookie.Trim())
-
-    client.GetStringAsync($"https://adventofcode.com/{year}/day/{day}/input")
-    |> Async.AwaitTask
-    |> Async.RunSynchronously
-
-/// Returns the path of the file containing puzzle input.
-let getInputFilePath () =
-    IO.Path.ChangeExtension(scriptPath, ".txt")
-
-/// Returns the path of the file containing puzzle input.
-let getInput () =
-    let inputFilePath = getInputFilePath ()
-
-    if not (IO.File.Exists(inputFilePath)) then
-        let input = downloadInput ()
-        IO.File.WriteAllText(inputFilePath, input)
-
-    IO.File.ReadAllText(inputFilePath)
-
-/// Splits a string of text into an array of individual lines (delimited by `\n`).
-/// All lines are trimmed and empty lines and discarded.
-let parseInputText (text: string) =
-    text
-    |> String.splitO "\n" (StringSplitOptions.TrimEntries ||| StringSplitOptions.RemoveEmptyEntries)
-
-/// Converts a collection of strings into an array of character arrays.
-let toCharArrays (strings: string seq) =
-    strings |> Seq.map String.toArray |> Seq.toArray
-
-/// Splits a collection of strings into an array of word arrays. Words are
-/// delimited by spaces (one or more).
-let toWordArrays (strings: string seq) =
-    strings
-    |> Seq.map (String.splitO " " StringSplitOptions.RemoveEmptyEntries)
-    |> Seq.toArray
-
-/// Splits a collection of strings into groups of strings. Each group begins
-/// with a string matching the specified prefix.
-let toGroups groupPrefix (strings: string[]) =
-    if strings.Length > 0 && not (strings[0] |> String.startsWith groupPrefix) then
-        failwithf "Unexpected group header: %s" strings[0]
-
-    let mutable idx = 0
-
-    [| while idx < strings.Length do
-           let groupName = strings[idx]
-           idx <- idx + 1
-
-           groupName,
-           [| while idx < strings.Length && not (strings[idx] |> String.startsWith groupPrefix) do
-                  strings[idx]
-                  idx <- idx + 1 |] |]
-
 /// Simple algorithm for parsing a binary tree
 type Tree<'V> =
     | Value of 'V
@@ -517,7 +573,7 @@ module Tree =
     let stringize (n: Tree<'V>) = n.ToString()
 
 /// A basic 2-dimensional point.
-[<StructAttribute>]
+[<Struct>]
 // [<StructuredFormatDisplay("({x},{y})")>]
 type Point2D =
     { x: int
@@ -534,7 +590,7 @@ type Point2D =
 let (|Point2D|) = Point2D.ofTuple
 
 /// A basic 3-dimensional point.
-[<StructAttribute>]
+[<Struct>]
 // [<StructuredFormatDisplay("({x},{y},{z})")>]
 type Point3D =
     { x: int
@@ -561,7 +617,7 @@ let (|Point3D|) = Point3D.ofTuple
 ///    |               |
 ///    +------top------+p2
 [<NoComparison>]
-[<StructAttribute>]
+[<Struct>]
 [<StructuredFormatDisplay("[{p1}..{p2}]")>]
 type Rect =
     { p1: Point2D // the "smaller" point (bottom-left), inclusive
@@ -689,7 +745,7 @@ type Rect =
 
 /// A cube type.
 [<NoComparison>]
-[<StructAttribute>]
+[<Struct>]
 [<StructuredFormatDisplay("[{p1}..{p2}]")>]
 type Cube =
     { p1: Point3D // the "smaller" point, inclusive
@@ -863,10 +919,8 @@ type Grid<'T> = GridRow<'T>[]
 and GridRow<'T> = 'T[]
 
 module Grid =
-    type XCoord = int
-    type YCoord = int
     /// The X-Y coordinates of a grid position.
-    type Coordinates = (XCoord * YCoord)
+    type Coordinates = Coordinate2D
 
     /// Asserts that the grid is rectangular.
     let verify (grid: Grid<'T>) =
@@ -932,7 +986,7 @@ module Grid =
         | 90 -> init h w (fun x y -> grid |> item (w - y - 1) x)
         | 180 -> init w h (fun x y -> grid |> item (w - x - 1) (h - y - 1))
         | 270 -> init h w (fun x y -> grid |> item y (h - x - 1))
-        | _ -> failwith "invalid rotation"
+        | _ -> invalidArg (nameof degrees) "Rotation angle must be a multiple of 90 degrees."
 
     let inline revCols (grid: Grid<'T>) = grid |> Array.rev
     let inline revRows (grid: Grid<'T>) = grid |> Array.map Array.rev
@@ -1085,3 +1139,37 @@ module Grid =
         grid |> stringize separator |> printfn "%s"
 
     let inline printfn grid = printfnSep "" grid
+
+/// Splits a string of text into an array of individual lines (delimited by `\n`).
+/// All lines are trimmed and empty lines and discarded.
+let parseInputText (text: string) =
+    text
+    |> String.splitO "\n" (StringSplitOptions.TrimEntries ||| StringSplitOptions.RemoveEmptyEntries)
+
+/// Converts a collection of strings into an array of character arrays.
+let toCharArrays (strings: string seq) =
+    strings |> Seq.map String.toArray |> Seq.toArray
+
+/// Splits a collection of strings into an array of word arrays. Words are
+/// delimited by spaces (one or more).
+let toWordArrays (strings: string seq) =
+    strings
+    |> Seq.map (String.splitO " " StringSplitOptions.RemoveEmptyEntries)
+    |> Seq.toArray
+
+/// Splits a collection of strings into groups of strings. Each group begins
+/// with a string matching the specified prefix.
+let toGroups groupPrefix (strings: string[]) =
+    if strings.Length > 0 && not (strings[0] |> String.startsWith groupPrefix) then
+        invalidArg (nameof groupPrefix) (sprintf "First string must start with %A" strings[0])
+
+    let mutable idx = 0
+
+    [| while idx < strings.Length do
+           let groupName = strings[idx]
+           idx <- idx + 1
+
+           groupName,
+           [| while idx < strings.Length && not (strings[idx] |> String.startsWith groupPrefix) do
+                  strings[idx]
+                  idx <- idx + 1 |] |]

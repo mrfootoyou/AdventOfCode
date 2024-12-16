@@ -6,42 +6,7 @@
 open System
 open System.Text.RegularExpressions
 open FSharpHelpers
-
-type Dir =
-    | Up
-    | Down
-    | Right
-    | Left
-
-module Dir =
-    let delta: Dir -> Grid.Coordinates =
-        function
-        | Up -> (0, -1)
-        | Down -> (0, +1)
-        | Right -> (+1, 0)
-        | Left -> (-1, 0)
-
-    let turn leftOrRight =
-        function
-        | Up -> if leftOrRight = Left then Left else Right
-        | Down -> if leftOrRight = Left then Right else Left
-        | Right -> if leftOrRight = Left then Up else Down
-        | Left -> if leftOrRight = Left then Down else Up
-
-    let toIcon =
-        function
-        | Up -> '^'
-        | Down -> 'v'
-        | Right -> '>'
-        | Left -> '<'
-
-    let fromIcon =
-        function
-        | '^' -> Up
-        | 'v' -> Down
-        | '>' -> Right
-        | '<' -> Left
-        | _ -> raise (System.ArgumentOutOfRangeException("Unexpected icon"))
+open Direction
 
 [<Literal>]
 let Rock = '#'
@@ -56,7 +21,7 @@ type InputData = Grid<char> * Grid.Coordinates
 
 let parseInput (text: string) : InputData =
     let map = text |> String.splitAndTrim "\n" |> Grid.fromLines
-    let pos = map |> Grid.find (Dir.toIcon Up)
+    let pos = map |> Grid.find (toArrow Up)
     map, pos //|> echo
 
 let validateAssumptions (data: InputData) =
@@ -89,14 +54,14 @@ let part1 ((g, (x, y)): InputData) =
     let g = g |> Grid.clone
 
     let rec move x y dir =
-        let (dx, dy) = dir |> Dir.delta
+        let (Delta(dx, dy)) = dir
         let (nx, ny) = x + dx, y + dy
         g |> Grid.set x y Visited
 
         match g |> Grid.tryItemV nx ny with
         | ValueSome Rock ->
             // turn right, don't move
-            let dir = dir |> Dir.turn Right
+            let dir = dir |> turnRight
             move x y dir
         | ValueSome _ ->
             // move forward, don't turn
@@ -105,7 +70,7 @@ let part1 ((g, (x, y)): InputData) =
             // out of bounds
             ()
 
-    let dir = g |> Grid.item x y |> Dir.fromIcon
+    let dir = g |> Grid.item x y |> fromArrow
     move x y dir
     g |> Grid.fold (fun s _ c -> if c = Visited then s + 1 else s) 0
 
@@ -117,13 +82,13 @@ let part2 ((g, ((x, y) as origin)): InputData) =
             true
         else
             let m = path |> Set.add (x, y, dir)
-            let (dx, dy) = dir |> Dir.delta
+            let (Delta(dx, dy)) = dir
             let (nx, ny) = x + dx, y + dy
 
             match g |> Grid.tryItemV nx ny with
             | ValueSome Rock ->
                 // turn right
-                hasLoop x y (dir |> Dir.turn Right) m
+                hasLoop x y (dir |> turnRight) m
             | ValueSome _ ->
                 // move forward
                 hasLoop nx ny dir m
@@ -133,13 +98,13 @@ let part2 ((g, ((x, y) as origin)): InputData) =
 
     let rec move x y dir path positions =
         let path = path |> Set.add (x, y, dir)
-        let (dx, dy) = dir |> Dir.delta
+        let (Delta(dx, dy)) = dir
         let (nx, ny) as next = x + dx, y + dy
 
         match g |> Grid.tryItemV nx ny with
         | ValueSome Rock ->
             // turn right
-            move x y (dir |> Dir.turn Right) path positions
+            move x y (dir |> turnRight) path positions
         | ValueSome v ->
             // place a rock in next position and see what happens...
             g |> Grid.set nx ny Rock
@@ -147,7 +112,7 @@ let part2 ((g, ((x, y) as origin)): InputData) =
             let positions =
                 if positions |> Map.containsKey next then
                     positions // already checked
-                elif hasLoop x y (dir |> Dir.turn Right) path then
+                elif hasLoop x y (dir |> turnRight) path then
                     positions |> Map.add next true
                 else
                     positions |> Map.add next false
@@ -159,7 +124,7 @@ let part2 ((g, ((x, y) as origin)): InputData) =
             // out of bounds (done)
             positions
 
-    let dir = g |> Grid.item x y |> Dir.fromIcon
+    let dir = g |> Grid.item x y |> fromArrow
     let positions = move x y dir Set.empty Map.empty
     positions |> Map.values |> Seq.where id |> Seq.length
 

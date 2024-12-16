@@ -6,14 +6,15 @@
 open System
 open System.Text.RegularExpressions
 open FSharpHelpers
+open Direction
 
-type InputData = Grid<char> * string
+type InputData = Grid<char> * Direction[]
 
 let parseInput (text: string) : InputData =
     let lines = text.Trim() |> String.splitRE (Regex @"\r?\n")
     let g = lines |> Array.takeWhile (not << String.IsNullOrEmpty)
     let inst = lines |> Array.skip (g.Length + 1)
-    (g |> Grid.fromLines, String.Join("", inst)) //|> dump
+    (g |> Grid.fromLines, String.Join("", inst) |> String.toArray |> Array.map fromArrow) //|> dump
 
 let validateAssumptions (data: InputData) =
     // Note: `assert` does not work in FSI, so must throw exception
@@ -82,28 +83,6 @@ let Wall = '#'
 
 [<Literal>]
 let Open = '.'
-
-[<Literal>]
-let Right = '>'
-
-[<Literal>]
-let Left = '<'
-
-[<Literal>]
-let Up = '^'
-
-[<Literal>]
-let Down = 'v'
-
-let delta =
-    function
-    | Right -> 1, 0
-    | Left -> -1, 0
-    | Up -> 0, -1
-    | Down -> 0, 1
-    | _ -> failwith "Unexpected delta"
-
-let (|Delta|) = delta
 
 let answer grid =
     grid

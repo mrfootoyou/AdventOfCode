@@ -6,6 +6,7 @@
 open System
 open System.Text.RegularExpressions
 open FSharpHelpers
+open Direction
 
 type InputData = Grid<char>
 
@@ -114,27 +115,6 @@ let part1 (data: InputData) =
 
         group.Length * ((group.Length * 4) - (sharedEdges * 2)))
 
-type Dir =
-    | Up
-    | Down
-    | Right
-    | Left
-
-module Dir =
-    let delta: Dir -> Grid.Coordinates =
-        function
-        | Up -> (0, -1)
-        | Down -> (0, +1)
-        | Right -> (+1, 0)
-        | Left -> (-1, 0)
-
-    let turn leftOrRight =
-        function
-        | Up -> if leftOrRight = Left then Left else Right
-        | Down -> if leftOrRight = Left then Right else Left
-        | Right -> if leftOrRight = Left then Up else Down
-        | Left -> if leftOrRight = Left then Down else Up
-
 let part2 (g: InputData) =
     let groups = allGroups g
 
@@ -152,17 +132,17 @@ let part2 (g: InputData) =
             //  ##### <- not a corner when moving Up
             //  ### <- Up is a Right-turn corner
             //  ### <- not a corner
-            let (dx, dy) = Dir.delta dir
+            let (Delta(dx, dy)) = dir
 
             if g |> Grid.itemOrDefault (x + dx) (y + dy) '.' <> color then
                 // position A - Left-turn corner
-                (x, y), dir |> Dir.turn Left
+                (x, y), dir |> turnLeft
             else
                 // we're at position B or C.
                 // move forward then test the right side...
                 let (x, y) = (x + dx), (y + dy)
-                let right = dir |> Dir.turn Right
-                let (dx, dy) = Dir.delta right
+                let right = dir |> turnRight
+                let (Delta(dx, dy)) = right
 
                 if g |> Grid.itemOrDefault (x + dx) (y + dy) '.' = color then
                     // position B - Right-turn corner
