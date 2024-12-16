@@ -902,19 +902,19 @@ module Grid =
         if y < 0 || x < 0 || y >= grid.Length || x >= grid[y].Length then
             None
         else
-            Some(grid[y][x])
+            Some(grid |> item x y)
 
     let inline tryItemV (x: XCoord) (y: YCoord) (grid: Grid<'T>) =
         if y < 0 || x < 0 || y >= grid.Length || x >= grid[y].Length then
             ValueNone
         else
-            ValueSome(grid[y][x])
+            ValueSome(grid |> item x y)
 
     let inline itemOrDefault (x: XCoord) (y: YCoord) defValue (grid: Grid<'T>) =
         if y < 0 || x < 0 || y >= grid.Length || x >= grid[y].Length then
             defValue
         else
-            grid[y][x]
+            grid |> item x y
 
     let inline set (x: XCoord) (y: YCoord) value (grid: Grid<'T>) = grid[y][x] <- value
 
@@ -922,16 +922,16 @@ module Grid =
         if y < 0 || x < 0 || y >= grid.Length || x >= grid[y].Length then
             ()
         else
-            grid[y][x] <- value
+            grid |> set x y value
 
     let rotate degrees (grid: Grid<'T>) =
         let (w, h) = grid |> widthAndHeight
 
         match (360 + (degrees % 360)) % 360 with
         | 0 -> grid |> clone
-        | 90 -> init h w (fun x y -> grid[x][w - y - 1])
-        | 180 -> init w h (fun x y -> grid[h - y - 1][w - x - 1])
-        | 270 -> init h w (fun x y -> grid[h - x - 1][y])
+        | 90 -> init h w (fun x y -> grid |> item (w - y - 1) x)
+        | 180 -> init w h (fun x y -> grid |> item (w - x - 1) (h - y - 1))
+        | 270 -> init h w (fun x y -> grid |> item y (h - x - 1))
         | _ -> failwith "invalid rotation"
 
     let inline revCols (grid: Grid<'T>) = grid |> Array.rev
@@ -943,18 +943,18 @@ module Grid =
     let col (x: XCoord) (grid: Grid<'T>) : 'T seq =
         seq {
             for y = 0 to grid.Length - 1 do
-                grid[y][x]
+                grid |> item x y
         }
 
     /// Applies the given function to each item in the specified grid column. The `Coordinates` passed to the function indicates the X-Y coordinates.
     let inline iterCol (idx: XCoord) ([<InlineIfLambda>] fn: Coordinates -> 'T -> unit) (grid: Grid<'T>) =
         for y = 0 to grid.Length - 1 do
-            fn (idx, y) (grid[y][idx])
+            fn (idx, y) (grid |> item idx y)
 
     /// Applies the given function to each item in the specified grid row. The `Coordinates` passed to the function indicates the X-Y coordinates.
     let inline iterRow (idx: YCoord) ([<InlineIfLambda>] fn: Coordinates -> 'T -> unit) (grid: Grid<'T>) =
         for x = 0 to grid[idx].Length - 1 do
-            fn (x, idx) (grid[idx][x])
+            fn (x, idx) (grid |> item x idx)
 
     /// Applies the given function to each item of the grid. The `Coordinates` passed to the function indicates the X-Y coordinates of the item.
     let inline iter ([<InlineIfLambda>] fn: Coordinates -> 'T -> unit) (grid: Grid<'T>) =
@@ -962,7 +962,7 @@ module Grid =
 
         for y = 0 to h - 1 do
             for x = 0 to w - 1 do
-                fn (x, y) (grid[y][x])
+                fn (x, y) (grid |> item x y)
 
     /// Builds a new grid whose items are the results of applying the given function to each of the items of the grid.
     /// The tuple passed to the function indicates the X-Y coordinates of item being transformed, starting at (0,0).
@@ -983,7 +983,7 @@ module Grid =
             elif x >= grid[y].Length then
                 loop state 0 (y + 1)
             else
-                let state = folder state (x, y) (grid[y][x])
+                let state = folder state (x, y) (grid |> item x y)
                 loop state (x + 1) y
 
         loop state 0 0
@@ -997,7 +997,7 @@ module Grid =
             elif x >= grid[y].Length then
                 loop 0 (y + 1)
             else
-                match predicate (x, y) (grid[y][x]) with
+                match predicate (x, y) (grid |> item x y) with
                 | None -> loop (x + 1) y
                 | res -> res
 
@@ -1035,7 +1035,7 @@ module Grid =
 
             for y = 0 to h - 1 do
                 for x = 0 to w - 1 do
-                    yield (x, y), (grid[y][x])
+                    yield (x, y), (grid |> item x y)
         }
 
     /// Breadth-first flood fill. Stack-safe at the expense of speed and memory.
@@ -1074,20 +1074,14 @@ module Grid =
 
         for y = 0 to h - 1 do
             for x = 0 to w - 1 do
-                sb.Append((grid[y][x]).ToString()).Append(separator) |> ignore
+                sb.Append((grid |> item x y).ToString()).Append(separator) |> ignore
 
             sb.AppendLine() |> ignore
 
         sb.ToString()
 
     /// Print the grid to stdout. Element are separated with the given separator string.
-    let printfnSep (separator: string) (grid: Grid<'T>) =
-        let (w, h) = grid |> widthAndHeight
-
-        for y = 0 to h - 1 do
-            for x = 0 to w - 1 do
-                printf "%O%s" (grid[y][x]) separator
-
-            printfn ""
+    let inline printfnSep (separator: string) (grid: Grid<'T>) =
+        grid |> stringize separator |> printfn "%s"
 
     let inline printfn grid = printfnSep "" grid
