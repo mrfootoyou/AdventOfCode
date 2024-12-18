@@ -199,6 +199,8 @@ module Direction =
 
     let inline (|Delta|) dir = delta dir
 
+    let inline offset (x, y) (Delta(dx, dy)) = (x + dx, y + dy)
+
     let toArrow dir =
         match dir with
         | Up -> '^'
@@ -1121,23 +1123,47 @@ module Grid =
     /// Breadth-first flood fill. Stack-safe at the expense of speed and memory.
     let flood x y color grid = grid |> floodFn x y (fun _ -> color)
 
-    /// Convert the grid to a multiline string. Element are separated with the given separator string.
-    let stringize (separator: string) (grid: Grid<'T>) =
+    /// Convert a grid to a string.
+    /// Element are formatted using the given formatting function
+    /// and separated with the given separator string.
+    let stringizeFmt (format: 'T -> string) (separator: string) (grid: Grid<'T>) =
         let (w, h) = grid |> widthAndHeight
-        let sb = StringBuilder.create (w * h * (1 + separator.Length))
+
+        let itemWidth =
+            let ty = typeof<'T>
+
+            if Type.op_Equality (ty, typeof<char>) then 1
+            elif Type.op_Equality (ty, typeof<byte>) then 2 // assume hex format
+            else 4 // a guess
+
+        let sb = StringBuilder.create (itemWidth * w * h * (1 + separator.Length))
 
         for y = 0 to h - 1 do
             for x = 0 to w - 1 do
-                sb.Append((grid |> item x y).ToString()).Append(separator) |> ignore
+                sb.Append(grid |> item x y |> format).Append(separator) |> ignore
 
             sb.AppendLine() |> ignore
 
         sb.ToString()
 
+    /// Convert a grid to a string.
+    /// Element are formatted using ToString() unless and separated with the given separator string.
+    let inline stringize separator (grid: Grid<'T>) =
+        let formatter =
+            let ty = typeof<'T>
+
+            if Type.op_Equality (ty, typeof<byte>) then
+                sprintf "%02X" // use hex format
+            else
+                string // mostly same as obj.ToString()
+
+        stringizeFmt formatter separator grid
+
     /// Print the grid to stdout. Element are separated with the given separator string.
     let inline printfnSep (separator: string) (grid: Grid<'T>) =
         grid |> stringize separator |> printfn "%s"
 
+    /// Print the grid to stdout.
     let inline printfn grid = printfnSep "" grid
 
 /// Splits a string of text into an array of individual lines (delimited by `\n`).
