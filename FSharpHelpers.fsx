@@ -285,6 +285,8 @@ module String =
     /// Split a string using the given regular expression as a delimter.
     let inline splitRE (re: Regex) (s: string) = re.Split(s)
 
+    let inline join (delim: string) (ss: string seq) = String.Join(delim, ss)
+
     let inline replace (oldValue: string) newValue (s: string) =
         s.Replace(oldValue, newValue, StringComparison.Ordinal)
 
