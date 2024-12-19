@@ -5,8 +5,8 @@
 
 open System
 open System.Text.RegularExpressions
+open System.Collections.Generic
 open FSharpHelpers
-open Direction
 
 type InputData = Coordinates[]
 
@@ -71,36 +71,30 @@ let solve size bytes (data: InputData) =
     data |> Seq.take bytes |> Seq.iter (fun (x, y) -> g |> Grid.set x y Corrupt)
     // g |> Grid.printfn
 
-    let canMove x y = g |> Grid.itemOrDefault x y ' ' = Safe
-
-    let rec loop minDist visited next =
-        match next with
-        | [] -> minDist // done
-        | (x, y, dist) :: next ->
+    let rec bfs (queue: Queue<_>) visited minDist =
+        match queue.TryDequeue() with
+        | false, _ -> minDist // done. exhausted queue
+        | true, (x, y, dist) ->
             if x = size && y = size then
-                // found exit
-                loop (min minDist dist) visited next
+                // reached the exit. update the minimum distance
+                bfs queue visited (min minDist dist)
             else
                 match visited |> Map.tryFind (x, y) with
-                | Some otherDist when otherDist <= dist ->
-                    // other path is shorter
-                    loop minDist visited next
+                | Some d when d <= dist ->
+                    // already visited with a shorter distance
+                    bfs queue visited minDist
                 | _ ->
                     let visited = visited |> Map.add (x, y) dist
 
-                    // try to move in all directions
-                    next
-                    @ [ if canMove (x + 1) y then
-                            (x + 1, y, dist + 1)
-                        if canMove (x - 1) y then
-                            (x - 1, y, dist + 1)
-                        if canMove x (y + 1) then
-                            (x, y + 1, dist + 1)
-                        if canMove x (y - 1) then
-                            (x, y - 1, dist + 1) ]
-                    |> loop minDist visited
+                    // add neighbors to the queue
+                    for (nx, ny) in [ (x + 1, y); (x - 1, y); (x, y + 1); (x, y - 1) ] do
+                        if g |> Grid.itemOrDefault nx ny ' ' = Safe then
+                            queue.Enqueue((nx, ny, dist + 1))
 
-    loop Int32.MaxValue Map.empty [ (0, 0, 0) ]
+                    bfs queue visited minDist
+
+    let queue = Queue([ (0, 0, 0) ])
+    bfs queue Map.empty Int32.MaxValue
 
 let part1 size bytes (data: InputData) = solve size bytes data
 

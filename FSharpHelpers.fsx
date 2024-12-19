@@ -923,6 +923,7 @@ type Grid<'T> = GridRow<'T>[]
 and GridRow<'T> = 'T[]
 
 module Grid =
+    open System.Collections.Generic
     /// The X-Y coordinates of a grid position.
     type Coordinates = Coordinate2D
 
@@ -1100,27 +1101,26 @@ module Grid =
     let floodFn x y fn grid =
         let oldValue = grid |> item x y
 
-        let next x y =
-            [ (x + 1, y); (x - 1, y); (x, y + 1); (x, y - 1) ]
-
-        let rec loop points =
-            match points with
-            | [] -> () // done
-            | (x, y) :: tail ->
+        let rec bfs (points: Queue<_>) =
+            match points.TryDequeue() with
+            | false, _ -> () // done
+            | true, (x, y) ->
                 match grid |> tryItemV x y with
                 | ValueSome n when n = oldValue ->
                     let newValue = fn (x, y)
 
-                    if newValue = oldValue then
-                        // ignore this position to avoid infinite loop
-                        tail
-                    else
+                    if newValue <> oldValue then
                         grid |> set x y newValue
-                        next x y @ tail
-                | _ -> tail
-                |> loop
+                        // add neighbors to queue
+                        points.Enqueue((x + 1, y))
+                        points.Enqueue((x - 1, y))
+                        points.Enqueue((x, y + 1))
+                        points.Enqueue((x, y - 1))
+                | _ -> ()
 
-        [ (x, y) ] |> loop
+                bfs points // tail-recursive
+
+        Queue([ (x, y) ]) |> bfs
 
     /// Breadth-first flood fill. Stack-safe at the expense of speed and memory.
     let flood x y color grid = grid |> floodFn x y (fun _ -> color)
