@@ -1155,7 +1155,7 @@ module Grid =
             let ty = typeof<'T>
 
             if Type.op_Equality (ty, typeof<byte>) then
-                sprintf "%02X" // use hex format
+                fun b -> (byte b).ToString("02X") // use hex format
             else
                 string // mostly same as obj.ToString()
 
@@ -1201,3 +1201,28 @@ let toGroups groupPrefix (strings: string[]) =
            [| while idx < strings.Length && not (strings[idx] |> String.startsWith groupPrefix) do
                   strings[idx]
                   idx <- idx + 1 |] |]
+
+/// Performs a binary search over the range of integers using the given
+/// predicate to home-in on the desired value.
+///
+/// The function starts by calling the predicate using the middle value
+/// from the range (n..m) inclusive. If the predicate returns 0 the search
+/// is over and the function returns the middle value. Otherwise, if the
+/// predicate return < 0, the function searches the left half of the range,
+/// else the right half. If it runs out of integers to search, None is returned.
+let rec binarySearch n m pred =
+    if n > m then
+        binarySearch m n pred
+    else // n <= m
+        let mid = n + ((m - n) / 2)
+
+        match pred mid with
+        | 0 -> Some mid // found
+        // not found
+        | _ when n = m -> None
+        | x when x < 0 ->
+            // search left
+            binarySearch n (mid - 1) pred
+        | _ ->
+            // search right
+            binarySearch (mid + 1) m pred
