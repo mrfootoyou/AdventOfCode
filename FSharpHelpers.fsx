@@ -1,28 +1,37 @@
 open System
 
-let inline tee ([<InlineIfLambda>] fn) x =
-    fn x
-    x
+/// Executes the given unit function with the input value and returns the input value.
+let inline tee ([<InlineIfLambda>] fn) input =
+    fn input
+    input
 
+/// Prints the given value to stdout, then returns the value.
 let inline dump x =
 #if INTERACTIVE
-    // use sprintf to avoid "tearing"
+    // use sprintf to avoid "tearing" the output
     tee (sprintf "%A" >> Console.WriteLine) x
 #else
     LINQPad.Extensions.Dump(x)
 #endif
 
+/// Prints the given value to stdout with the given heading prefix, then returns the value.
 let inline dumps (heading: string) x =
 #if INTERACTIVE
-    // use sprintf to avoid "tearing"
+    // use sprintf to avoid "tearing" the output
     tee (sprintf "%s: %A" heading >> Console.WriteLine) x
 #else
     LINQPad.Extensions.Dump(heading, x)
 #endif
 
-let trace = dump
+/// Same as `dump`.
 let echo = dump
+/// Same as `dumps`.
 let echos = dumps
+
+/// Same as `dump` but returns no value.
+let inline trace x = dump x |> ignore
+/// Same as `dumps` but returns no value.
+let inline traces s x = dumps s x |> ignore
 
 let scriptPath =
 #if INTERACTIVE
@@ -267,6 +276,17 @@ module String =
     let inline padL c totalWidth (s: string) = s.PadLeft(c, totalWidth)
     let inline padR c totalWidth (s: string) = s.PadRight(c, totalWidth)
 
+    let inline join (delim: string) (ss: string seq) = String.Join(delim, ss)
+
+    let inline rev (s: string) =
+        String.Create(
+            s.Length,
+            s,
+            fun dst s ->
+                s.CopyTo(dst)
+                MemoryExtensions.Reverse(dst)
+        )
+
     /// Split a string using the given delimiter.
     let inline split (sep: string) (s: string) = s.Split(sep)
     /// Split a string into at most `count` parts.
@@ -284,8 +304,6 @@ module String =
 
     /// Split a string using the given regular expression as a delimter.
     let inline splitRE (re: Regex) (s: string) = re.Split(s)
-
-    let inline join (delim: string) (ss: string seq) = String.Join(delim, ss)
 
     let inline replace (oldValue: string) newValue (s: string) =
         s.Replace(oldValue, newValue, StringComparison.Ordinal)
@@ -660,7 +678,8 @@ type Rect =
 
     /// Grows the rect by offsetting p2.
     static member inline grow (dx, dy) c : Rect =
-        { c with p2 = c.p2 |> Point2D.offset (dx, dy) }
+        { c with
+            p2 = c.p2 |> Point2D.offset (dx, dy) }
 
     /// Returns a Rect with positive size in all dims (p1.xy <= p2.xy).
     static member normalize(c: Rect) =
@@ -731,8 +750,13 @@ type Rect =
             [ let mutable a = a
 
               if i.right = b.right && a.right <> b.right then
-                  yield { a with p1 = { a.p1 with x = i.right } }
-                  a <- { a with p2 = { a.p2 with x = i.right } }
+                  yield
+                      { a with
+                          p1 = { a.p1 with x = i.right } }
+
+                  a <-
+                      { a with
+                          p2 = { a.p2 with x = i.right } }
 
               if i.left = b.left && a.left <> b.left then
                   yield { a with p2 = { a.p2 with x = i.left } }
@@ -743,8 +767,13 @@ type Rect =
                   a <- { a with p2 = { a.p2 with y = i.top } }
 
               if i.bottom = b.bottom && a.bottom <> b.bottom then
-                  yield { a with p2 = { a.p2 with y = i.bottom } }
-                  a <- { a with p1 = { a.p1 with y = i.bottom } } ]
+                  yield
+                      { a with
+                          p2 = { a.p2 with y = i.bottom } }
+
+                  a <-
+                      { a with
+                          p1 = { a.p1 with y = i.bottom } } ]
             |> Some
 
 /// A cube type.
@@ -792,7 +821,8 @@ type Cube =
 
     /// Grows the cube by offsetting p2.
     static member inline grow (dx, dy, dz) c : Cube =
-        { c with p2 = c.p2 |> Point3D.offset (dx, dy, dz) }
+        { c with
+            p2 = c.p2 |> Point3D.offset (dx, dy, dz) }
 
     /// Returns a Cube with positive size in all 3 dims (p1.xyz <= p2.xyz).
     static member normalize(c: Cube) =
@@ -886,8 +916,13 @@ type Cube =
             [ let mutable a = a
 
               if i.right = b.right && a.right <> b.right then
-                  yield { a with p1 = { a.p1 with x = i.right } }
-                  a <- { a with p2 = { a.p2 with x = i.right } }
+                  yield
+                      { a with
+                          p1 = { a.p1 with x = i.right } }
+
+                  a <-
+                      { a with
+                          p2 = { a.p2 with x = i.right } }
 
               if i.left = b.left && a.left <> b.left then
                   yield { a with p2 = { a.p2 with x = i.left } }
@@ -898,12 +933,22 @@ type Cube =
                   a <- { a with p2 = { a.p2 with y = i.top } }
 
               if i.bottom = b.bottom && a.bottom <> b.bottom then
-                  yield { a with p2 = { a.p2 with y = i.bottom } }
-                  a <- { a with p1 = { a.p1 with y = i.bottom } }
+                  yield
+                      { a with
+                          p2 = { a.p2 with y = i.bottom } }
+
+                  a <-
+                      { a with
+                          p1 = { a.p1 with y = i.bottom } }
 
               if i.front = b.front && a.front <> b.front then
-                  yield { a with p1 = { a.p1 with z = i.front } }
-                  a <- { a with p2 = { a.p2 with z = i.front } }
+                  yield
+                      { a with
+                          p1 = { a.p1 with z = i.front } }
+
+                  a <-
+                      { a with
+                          p2 = { a.p2 with z = i.front } }
 
               if i.back = b.back && a.back <> b.back then
                   yield { a with p2 = { a.p2 with z = i.back } }
