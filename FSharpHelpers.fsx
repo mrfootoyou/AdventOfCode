@@ -1020,6 +1020,22 @@ module Grid =
         else
             grid |> item x y
 
+    let inline next pos dir grid =
+        let (x, y) = Direction.offset pos dir
+        item x y grid
+
+    let inline nextOrDefault pos dir def grid =
+        let (x, y) = Direction.offset pos dir
+        itemOrDefault x y def grid
+
+    let inline tryNext pos dir grid =
+        let (x, y) = Direction.offset pos dir
+        tryItem x y grid
+
+    let inline tryNextV pos dir grid =
+        let (x, y) = Direction.offset pos dir
+        tryItemV x y grid
+
     let inline set (x: XCoord) (y: YCoord) value (grid: Grid<'T>) = grid[y][x] <- value
 
     let inline trySet (x: XCoord) (y: YCoord) value (grid: Grid<'T>) =
