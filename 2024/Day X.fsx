@@ -3,6 +3,8 @@
 #load "../FSharpHelpers.fsx"
 #endif
 
+#nowarn "57" // Experimental library feature (Array.Parallel), requires '--langversion:preview'.
+
 open System
 open System.Text.RegularExpressions
 open FSharpHelpers
