@@ -1,6 +1,12 @@
 {
-  "FSharp.inlayHints.enabled": false,
   "FSharp.inlayHints.typeAnnotations": false,
   "editor.inlayHints.enabled": "offUnlessPressed",
+  "code-runner.saveFileBeforeRun": true,
+  "code-runner.preserveFocus": true,
+  "code-runner.clearPreviousOutput": true,
+  "code-runner.ignoreSelection": true,
+  "code-runner.executorMap": {
+    "fsharp": "dotnet fsi",
+  },
   "cSpell.words": ["stringize", "summatorial"]
 }
