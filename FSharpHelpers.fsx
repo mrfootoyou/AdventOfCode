@@ -89,6 +89,66 @@ let inline executePuzzle title fn expected =
     printfn "[%s] %s: %A" (elapsed.ToString("G")) title res
     testEqual title expected res
 
+open System.Numerics
+
+// Static lookup table for powers of 10 (cache-hot in tight loops)
+let private powersOf10 =
+    [| 1UL
+       10UL
+       100UL
+       1000UL
+       10000UL
+       100000UL
+       1000000UL
+       10000000UL
+       100000000UL
+       1000000000UL // 10^9 (Max for int32/uint32)
+       10000000000UL
+       100000000000UL
+       1000000000000UL
+       10000000000000UL
+       100000000000000UL
+       1000000000000000UL
+       10000000000000000UL
+       100000000000000000UL
+       1000000000000000000UL // 10^18 (Max for int64)
+       10000000000000000000UL |] // 10^19 (Max for uint64)
+
+/// Counts the number of decimal digits in an unsigned 64-bit integer.
+let countDigitsU64 (n: uint64) =
+    if n = 0UL then
+        1
+    else
+        // 1. Hardware Intrinsic (~3 cycles)
+        // Get number of bits used. (64 - leading zeros)
+        let bits = 64 - System.Numerics.BitOperations.LeadingZeroCount(n)
+
+        // 2. Approximate Log10 using Fixed-Point Math
+        // log10(2) is approx 0.30103.
+        // 1233 / 4096 (2^12) is 0.301025.
+        // This maps the bit-count to a base-10 magnitude.
+        let t = (bits * 1233) >>> 12
+
+        // 3. Correction
+        // The approximation may be off by one at power-of-10 boundaries.
+        // We check against the table to be precise.
+        if n < powersOf10[t] then t else t + 1
+
+/// Counts the number of decimal digits in the given signed 64-bit integer.
+let countDigitsI64 (n: int64) =
+    if n >= 0L then
+        countDigitsU64 (uint64 n)
+    else
+        countDigitsU64 (uint64 -n)
+
+/// Computes 10 raised to the given exponent (0..19) as a uint64.
+/// Uses a static lookup table for performance.
+/// Throws `ArgumentOutOfRangeException` if exponent is out of range.
+/// - exp: The exponent. 0..19 for uint64. 18 is the max for int64 values, 9 for int32/uint32.
+let inline fastPow10 (exp: int) = 
+    if exp < 0 || exp > 19 then
+        invalidArg (nameof exp) "Exponent out of range (0..19)."
+    powersOf10[exp]
 
 /// Computes the sum of positive integers in the range 0..n, inclusive.
 let summatorial n = (n * (n + 1)) / 2
