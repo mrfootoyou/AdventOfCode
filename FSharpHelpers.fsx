@@ -1084,6 +1084,12 @@ module Grid =
 
     let inline clone (grid: Grid<'T>) = grid |> Array.map Array.copy
 
+    let inline copy (dst: Grid<'T>) (src: Grid<'T>) =
+        if dst.Length <> src.Length || dst[0].Length <> src[0].Length then
+            invalidArg (nameof dst) "Source and Destination grid must have the same dimensions." 
+        for i = 0 to src.Length - 1 do
+            Array.Copy(src[i], 0, dst[i], 0, src[i].Length)
+
     /// Converts an array of strings into a character grid.
     let fromLines (lines: string[]) : Grid<char> =
         lines |> Array.map String.toArray |> tee verify
