@@ -1149,7 +1149,7 @@ module Grid =
         else
             grid |> set x y value
 
-    let rotate degrees (grid: Grid<'T>) =
+    let rotate degrees (grid: Grid<'T>): Grid<'T> =
         let (w, h) = grid |> widthAndHeight
 
         match (360 + (degrees % 360)) % 360 with
