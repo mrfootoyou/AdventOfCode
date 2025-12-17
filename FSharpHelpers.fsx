@@ -1125,6 +1125,15 @@ module Grid =
         else
             grid |> item x y
 
+    /// Returns the grid item at the given coordinates. Throws exception if coordinates are out of bounds
+    let inline get ((x, y): Coordinates) (grid: Grid<'T>) = item x y grid
+    /// Returns the grid item at the given coordinates, or None if the coordinates are out of bounds.
+    let inline tryGet ((x, y): Coordinates) (grid: Grid<'T>) = tryItem x y grid
+    /// Returns the grid item at the given coordinates, or ValueNone if the coordinates are out of bounds.
+    let inline tryGetV ((x, y): Coordinates) (grid: Grid<'T>) = tryItemV x y grid
+    /// Returns the grid item at the given coordinates, or the default value if the coordinates are out of bounds.
+    let inline getOrDefault ((x, y): Coordinates) defValue (grid: Grid<'T>) = itemOrDefault x y defValue grid
+
     let inline next pos dir grid =
         let (x, y) = Direction.offset pos dir
         item x y grid
