@@ -1,4 +1,5 @@
 open System
+open System.Numerics
 
 /// Executes the given unit function with the input value and returns the input value.
 let inline tee ([<InlineIfLambda>] fn) input =
@@ -89,10 +90,8 @@ let inline executePuzzle title fn expected =
     printfn "[%s] %s: %A" (elapsed.ToString("G")) title res
     testEqual title expected res
 
-open System.Numerics
-
 // Static lookup table for powers of 10 (cache-hot in tight loops)
-let private powersOf10 =
+let powersOf10 =
     [| 1UL
        10UL
        100UL
@@ -145,9 +144,10 @@ let countDigitsI64 (n: int64) =
 /// Uses a static lookup table for performance.
 /// Throws `ArgumentOutOfRangeException` if exponent is out of range.
 /// - exp: The exponent. 0..19 for uint64. 18 is the max for int64 values, 9 for int32/uint32.
-let inline fastPow10 (exp: int) = 
+let inline fastPow10 (exp: int) =
     if exp < 0 || exp > 19 then
         invalidArg (nameof exp) "Exponent out of range (0..19)."
+
     powersOf10[exp]
 
 /// Computes the sum of positive integers in the range 0..n, inclusive.
@@ -730,6 +730,7 @@ type Point3D =
           z = pt.z + dz }
 
 let (|Point3D|) = Point3D.ofTuple
+let (|Coords3D|) = Point3D.toTuple
 
 /// A rectangle type.
 ///  p1+-----bottom----+
@@ -1057,8 +1058,23 @@ type Cube =
 let manhattanDistance (p1: Point2D) (p2: Point2D) =
     Math.Abs(p2.x - p1.x) + Math.Abs(p2.y - p1.y)
 
+let squareDistance (p1: Point2D) (p2: Point2D) =
+    (p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y)
+
+let distance (p1: Point2D) (p2: Point2D) =
+    squareDistance p1 p2 |> float |> Math.Sqrt
+
 let manhattanDistance3D (p1: Point3D) (p2: Point3D) =
     Math.Abs(p2.x - p1.x) + Math.Abs(p2.y - p1.y) + Math.Abs(p2.z - p1.z)
+
+let squareDistance3D (p1: Point3D) (p2: Point3D) =
+    int64 (p2.x - p1.x) * int64 (p2.x - p1.x)
+    + int64 (p2.y - p1.y) * int64 (p2.y - p1.y)
+    + int64 (p2.z - p1.z) * int64 (p2.z - p1.z)
+
+let distance3D (p1: Point3D) (p2: Point3D) =
+    squareDistance3D p1 p2 |> float |> Math.Sqrt
+
 
 /// A rectangular grid of items, modeled as an array of rows.
 /// The Y coordinate specifies a row index.
@@ -1086,7 +1102,8 @@ module Grid =
 
     let inline copy (dst: Grid<'T>) (src: Grid<'T>) =
         if dst.Length <> src.Length || dst[0].Length <> src[0].Length then
-            invalidArg (nameof dst) "Source and Destination grid must have the same dimensions." 
+            invalidArg (nameof dst) "Source and Destination grid must have the same dimensions."
+
         for i = 0 to src.Length - 1 do
             Array.Copy(src[i], 0, dst[i], 0, src[i].Length)
 
@@ -1158,7 +1175,7 @@ module Grid =
         else
             grid |> set x y value
 
-    let rotate degrees (grid: Grid<'T>): Grid<'T> =
+    let rotate degrees (grid: Grid<'T>) : Grid<'T> =
         let (w, h) = grid |> widthAndHeight
 
         match (360 + (degrees % 360)) % 360 with
