@@ -1292,7 +1292,6 @@ module Grid =
         }
 
     /// Breadth-first flood fill. Stack-safe at the expense of speed and memory.
-    [<TailCall>]
     let floodFn x y fn grid =
         let oldValue = grid |> item x y
 
@@ -1315,10 +1314,53 @@ module Grid =
 
                 bfs points // tail-recursive
 
-        Queue([ (x, y) ]) |> bfs
+        Queue [ (x, y) ] |> bfs
 
     /// Breadth-first flood fill. Stack-safe at the expense of speed and memory.
-    let flood x y color grid = grid |> floodFn x y (fun _ -> color)
+    let flood x y color grid =
+        match grid |> tryItemV x y with
+        | ValueNone -> () // out of bounds. nothing to do
+        | ValueSome oldValue when oldValue = color -> () // nothing to do
+        | ValueSome oldValue ->
+            let w, h = grid |> widthAndHeight
+
+            let rec bfs (points: Queue<_>) =
+                match points.TryDequeue() with
+                | false, _ -> () // done
+                | true, (x, y) ->
+                    match grid |> item x y with
+                    | n when n = oldValue ->
+                        grid |> set x y color
+
+                        // flood the row to take advantage of cache consistency
+                        let mutable x2 = x + 1
+                        while x2 < w do
+                            match grid |> item x2 y with
+                            | n when n = oldValue ->
+                                grid |> set x2 y color
+                                x2 <- x2 + 1
+                            | _ -> x2 <- w
+
+                        x2 <- x - 1
+
+                        while x2 >= 0 do
+                            match grid |> item x2 y with
+                            | n when n = oldValue ->
+                                grid |> set x2 y color
+                                x2 <- x2 - 1
+                            | _ -> x2 <- -1
+
+                        // queue points in rows above and below
+                        if y > 0 then
+                            points.Enqueue((x, y - 1))
+
+                        if y < h - 1 then
+                            points.Enqueue((x, y + 1))
+                    | _ -> ()
+
+                    bfs points // tail-recursive
+
+            Queue [ (x, y) ] |> bfs
 
     /// Convert a grid to a string.
     /// Element are formatted using the given formatting function
