@@ -487,29 +487,40 @@ module Array =
     /// If `n` is greater than or equal to the length of the array, the second part is empty.
     let inline splitAtIndex n a =
         match n with
-        | _ when n <= 0 -> (Array.empty, a |> Array.copy)
-        | _ when n >= Array.length a -> (a |> Array.copy, Array.empty)
-        | _ -> (a[.. (n - 1)], a[n..])
+        | _ when n <= 0 -> Array.empty, a |> Array.copy
+        | _ when n >= Array.length a -> a |> Array.copy, Array.empty
+        | _ -> a[.. (n - 1)], a[n..]
 
     /// Splits the array into two parts -- those prior to the index where the
     /// predicate first returns `true`, and the others.
     /// If the predicate never returns `true`, the first tuple item is the entire array.
     /// If the predicate returns `true` for the first item, the first tuple item is empty.
     let inline split ([<InlineIfLambda>] pred: 'a -> bool) a =
-        match a |> Array.tryFindIndex pred with
-        | None -> (a |> Array.copy, Array.empty)
-        | Some 0 -> (Array.empty, a |> Array.copy)
-        | Some n -> (a[.. (n - 1)], a[n..])
+        a |> splitAtIndex (a |> Array.tryFindIndex pred |> Option.defaultValue a.Length)
 
-    let inline shuffle a =
-        a |> Array.sortBy (fun _ -> Random.Shared.Next(0, a.Length))
+    /// Return a new array shuffled in a random order.
+    let shuffle = Array.randomShuffle
 
-    let swap i j (arr: _[]) =
-        let buf = arr[i]
+    /// Swaps two elements in an array in-place.
+    let inline swap i j (arr: 'a[]) =
+        let tmp = arr[i]
         arr[i] <- arr[j]
-        arr[j] <- buf
+        arr[j] <- tmp
 
-    // Note: this function permutes the source array in-place.
+    /// Generates all permutations of a subset of an array of elements using
+    /// Heap's algorithm (https://en.wikipedia.org/wiki/Heap%27s_algorithm)
+    ///
+    /// Warning: this function permutes the source array in-place.
+    ///
+    /// Use with care. Although this function can enumerate sequences of
+    /// arbitrary length, the number of permutation of a set of length
+    /// `n` is `n!`. Thus a set with 13 items has 6.2x10^9 permutations
+    /// and takes about 2.5 minutes to enumerate (~41.5 million enums/s).
+    ///
+    /// # Parameters
+    /// - start: The starting index of the elements to permute.
+    /// - len: The number of elements to permute.
+    /// - arr: The source array.
     let permutationsSubsetInPlace start len arr =
         seq {
             yield arr
@@ -538,19 +549,48 @@ module Array =
                     i <- i + 1
         }
 
-    // Note: this function permutes the source array in-place.
+    /// Generates all permutations of an array of elements using
+    /// Heap's algorithm (https://en.wikipedia.org/wiki/Heap%27s_algorithm)
+    ///
+    /// Warning: this function permutes the source array in-place.
+    ///
+    /// Use with care. Although this function can enumerate sequences of
+    /// arbitrary length, the number of permutation of a set of length
+    /// `n` is `n!`. Thus a set with 13 items has 6.2x10^9 permutations
+    /// and takes about 2.5 minutes to enumerate (~41.5 million enums/s).
     let inline permutationsInPlace arr =
         permutationsSubsetInPlace 0 (arr |> Array.length) arr
 
+    /// Generates all permutations of an array of elements using
+    /// Heap's algorithm (https://en.wikipedia.org/wiki/Heap%27s_algorithm)
+    ///
+    /// Use with care. Although this function can enumerate sequences of
+    /// arbitrary length, the number of permutation of a set of length
+    /// `n` is `n!`. Thus a set with 13 items has 6.2x10^9 permutations
+    /// and takes about 2.5 minutes to enumerate (~41.5 million enums/s).
     let inline permutations arr =
         arr |> Array.copy |> permutationsInPlace
 
+    /// Generates all permutations of a subset of an array of elements using
+    /// Heap's algorithm (https://en.wikipedia.org/wiki/Heap%27s_algorithm)
+    ///
+    /// Use with care. Although this function can enumerate sequences of
+    /// arbitrary length, the number of permutation of a set of length
+    /// `n` is `n!`. Thus a set with 13 items has 6.2x10^9 permutations
+    /// and takes about 2.5 minutes to enumerate (~41.5 million enums/s).
+    ///
+    /// # Parameters
+    /// - start: The starting index of the elements to permute.
+    /// - len: The number of elements to permute.
+    /// - arr: The source array.
     let inline permutationsSubset start len arr =
-        arr |> Array.copy |> permutationsSubsetInPlace 0 (arr |> Array.length)
+        arr |> Array.copy |> permutationsSubsetInPlace start len
 
 module Seq =
     /// Generates all permutations of a subset of a sequence of elements using
     /// Heap's algorithm (https://en.wikipedia.org/wiki/Heap%27s_algorithm)
+    ///
+    /// Note: this function immediately enumerates the source sequence.
     ///
     /// Use with care. Although this function can enumerate sequences of
     /// arbitrary length, the number of permutation of a set of length
@@ -562,46 +602,98 @@ module Seq =
     /// - len: The number of elements to permute.
     /// - s: The source sequence.
     let permutationsSubset start len s =
-        seq {
-            let arr = s |> Seq.toArray
-
-            for p in arr |> Array.permutationsSubsetInPlace start len do
-                yield (p |> Array.toSeq)
-        }
+        s |> Seq.toArray |> Array.permutationsSubsetInPlace start len |> Seq.cast<_ seq>
 
     /// Generates all permutations of a sequence of elements using
     /// Heap's algorithm (https://en.wikipedia.org/wiki/Heap%27s_algorithm)
+    ///
+    /// Note: this function immediately enumerates the source sequence.
     ///
     /// Use with care. Although this function can enumerate sequences of
     /// arbitrary length, the number of permutation of a set of length
     /// `n` is `n!`. Thus a set with 13 items has 6.2x10^9 permutations
     /// and takes about 2.5 minutes to enumerate (~41.5 million enums/s).
     let permutations s =
+        s |> Seq.toArray |> Array.permutationsInPlace |> Seq.cast<_ seq>
+
+    /// Returns a sequence containing all **unique** pairs of elements from the
+    /// input sequence.
+    ///
+    /// Pair (a,b) is considered the same as (b,a) so only the first is included.
+    ///
+    /// If `includeIdentity` is true, then identity pairs are included, e.g., (a,a), (b,b), etc..
+    let allPairs includeIdentity (values: seq<_>) =
         seq {
-            let arr = s |> Seq.toArray
+            let arr =
+                match values with
+                | :? (_ array) as arr -> arr
+                | _ -> values |> Seq.toArray
 
-            for p in arr |> Array.permutationsInPlace do
-                yield (p |> Array.toSeq)
-        }
-
-    /// Returns a sequence containing all **unique** pairs --
-    /// pair (a,b) is considered the same as (b,a) and only the first is returned.
-    let allPairs includeIdentity values =
-        seq {
-            let mutable values = values |> Seq.cache
-
-            while not (values |> Seq.isEmpty) do
-                let h = values |> Seq.head
-                let tail = values |> Seq.tail
+            for i = 0 to arr.Length - 1 do
+                let h = arr[i]
 
                 if includeIdentity then
-                    yield (h, h)
+                    yield h, h
 
-                for t in tail do
-                    yield (h, t)
-
-                values <- tail
+                for j = i + 1 to arr.Length - 1 do
+                    yield h, arr[j]
         }
+
+    /// Generates all permutations of the given length from the input sequence.
+    /// - If length is 0, returns the null set (one empty sequence).
+    /// - If length is 1, returns each element as a singleton sequence.
+    /// - If length > values.Length, returns empty sequence.
+    let rec allPermutationsOfLength length (values: seq<_>) =
+        match length with
+        | 0 -> Seq.singleton Seq.empty
+        | 1 -> values |> Seq.map Seq.singleton
+        | _ ->
+            let arr =
+                match values with
+                | :? (_[]) as arr -> arr
+                | _ -> values |> Seq.toArray
+
+            let excluding idx (arr: _[]) =
+                seq {
+                    for i = 0 to arr.Length - 1 do
+                        if i <> idx then
+                            yield arr[i]
+                }
+
+            if length > arr.Length then
+                Seq.empty // no combinations possible
+            else
+                seq {
+                    for i = 0 to arr.Length - 1 do
+                        let subset = arr |> excluding i
+
+                        for subPermutations in allPermutationsOfLength (length - 1) subset do
+                            yield Seq.append (Seq.singleton arr[i]) subPermutations
+                }
+
+    /// Generates all _unique_ subsets of the specified length.
+    /// Each subset is in the same order as the input sequence.
+    /// - If length is 0, returns the null set (one empty sequence).
+    /// - If length is 1, returns each element as a singleton sequence.
+    /// - If length > values.Length, returns empty sequence.
+    let rec allSubsetsOfLength length (values: seq<_>) =
+        match length with
+        | 0 -> Seq.singleton Seq.empty
+        | 1 -> values |> Seq.map Seq.singleton
+        | _ ->
+            let arr =
+                match values with
+                | :? (_[]) as arr -> arr
+                | _ -> values |> Seq.toArray
+
+            if length > arr.Length then
+                Seq.empty // no combinations possible
+            else
+                seq {
+                    for i = 0 to arr.Length - 2 do
+                        for minorSubset in allSubsetsOfLength (length - 1) arr[i + 1 ..] do
+                            yield Seq.append (Seq.singleton arr[i]) minorSubset
+                }
 
 /// Simple algorithm for parsing a binary tree
 type Tree<'V> =
@@ -1334,6 +1426,7 @@ module Grid =
 
                         // flood the row to take advantage of cache consistency
                         let mutable x2 = x + 1
+
                         while x2 < w do
                             match grid |> item x2 y with
                             | n when n = oldValue ->
