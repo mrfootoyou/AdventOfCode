@@ -250,7 +250,7 @@ module Direction =
     /// Turn clockwise in 90deg increments.
     /// Degrees can be negative or even greater than 360.
     let rotate degrees dir =
-        match (360 + (degrees % 360)) % 360 with
+        match (degrees % 360 + 360) % 360 with
         | 0 -> dir
         | 90 -> turnRight dir
         | 180 -> reverse dir
@@ -284,6 +284,11 @@ module Direction =
         | '>' -> Right
         | '<' -> Left
         | _ -> invalidArg (nameof char) "Unexpected arrow character."
+
+[<Struct>]
+type Orientation =
+    | Horizontal
+    | Vertical
 
 module Regex =
     open System.Text.RegularExpressions
@@ -1166,8 +1171,7 @@ let squareDistance3D (p1: Point3D) (p2: Point3D) =
 
 let distance3D (p1: Point3D) (p2: Point3D) =
     squareDistance3D p1 p2 |> float |> Math.Sqrt
-
-
+    
 /// A rectangular grid of items, modeled as an array of rows.
 /// The Y coordinate specifies a row index.
 /// The X coordinate specifies a column index.
@@ -1270,19 +1274,32 @@ module Grid =
     let rotate degrees (grid: Grid<'T>) : Grid<'T> =
         let (w, h) = grid |> widthAndHeight
 
-        match (360 + (degrees % 360)) % 360 with
+        match (degrees % 360 + 360) % 360 with
         | 0 -> grid |> clone
         | 90 -> init h w (fun x y -> grid |> item (w - y - 1) x)
         | 180 -> init w h (fun x y -> grid |> item (w - x - 1) (h - y - 1))
         | 270 -> init h w (fun x y -> grid |> item y (h - x - 1))
         | _ -> invalidArg (nameof degrees) "Rotation angle must be a multiple of 90 degrees."
 
-    let inline revCols (grid: Grid<'T>) = grid |> Array.rev
-    let inline revRows (grid: Grid<'T>) = grid |> Array.map Array.rev
-    let inline rev (grid: Grid<'T>) = grid |> revRows |> revCols
+    /// Flip the grid in the specified orientation.
+    let flip (orientation: Orientation) (grid: Grid<'T>) : Grid<'T> =
+        let (w, h) = grid |> widthAndHeight
 
+        match orientation with
+        | Horizontal ->
+            init w h (fun x y -> grid |> item (w - x - 1) y)
+        | Vertical ->
+            init w h (fun x y -> grid |> item x (h - y - 1))
+
+    /// Reverses both the rows and columns of the grid.
+    /// This is equivalent to rotating the grid 180 degrees.
+    let inline rev (grid: Grid<'T>) : Grid<'T> =
+        grid |> rotate 180
+
+    /// Returns the specified row of the grid.
     let inline row (y: YCoord) (grid: Grid<'T>) : 'T seq = grid[y]
 
+    /// Returns the specified column of the grid.
     let col (x: XCoord) (grid: Grid<'T>) : 'T seq =
         seq {
             for y = 0 to grid.Length - 1 do
@@ -1312,6 +1329,11 @@ module Grid =
     let inline map ([<InlineIfLambda>] mapping: Coordinates -> 'T -> 'U) (grid: Grid<'T>) : Grid<'U> =
         grid
         |> Array.mapi (fun y row -> row |> Array.mapi (fun x item -> mapping (x, y) item))
+
+    /// Counts the number of occurrences of the given item in the grid.
+    let inline countOf (x: 'T) (grid: Grid<'T>) =
+        grid 
+        |> Array.sumBy (Array.fold (fun c item -> if item = x then c + 1 else c) 0)
 
     /// Builds a new grid whose items are the results of applying the given function to each of the items of the grid.
     /// The tuple passed to the function indicates the X-Y coordinates of item being transformed, starting at (0,0).
