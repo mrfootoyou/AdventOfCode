@@ -16,9 +16,13 @@ let parseInput (text: string) : InputData =
 // |> tee Grid.printfn
 
 let validateAssumptions (data: InputData) =
+    let affirm condition msg =
+        if not condition then
+            failwithf "Assumption failed: '%s' is not true." msg
+
     // Note: `assert` does not work in FSI, so must throw exception
-    if false then
-        failwith "Bad assumption: xxx"
+    data
+    |> Array.iter (fun s -> affirm (s.Length > 12) "Each row has more than 12 digits.")
 
 let parseData s = parseInput s |> tee validateAssumptions
 
@@ -54,56 +58,28 @@ let part1 (data: InputData) =
 
 let part2 (data: InputData) =
     data
-    |> Array.Parallel.sumBy (fun row ->
-        let mutable maxA, maxJolts = 0, 0UL
+    |> Array.sumBy (fun digits ->
+        // grab the last 12 digits...
+        let ds = digits[digits.Length - 12 ..]
 
-        let row = row.AsSpan()
+        // for each digit d in ds, update it to be the _first largest_ value in digits[start..indexOf(d)].
+        // Update start to be one after that index...
+        let mutable start = 0
 
-        for a = 0 to row.Length - 12 do
-            if row[a] >= maxA then // optimization
-                let jolts = row[a]
+        for n = 0 to 12 - 1 do
+            let dsn = digits.Length - 12 + n
 
-                for b = a + 1 to row.Length - 11 do
-                    let jolts = jolts * 10 + row[b]
+            for i = dsn downto start do
+                if digits[i] >= ds[n] then
+                    ds[n] <- digits[i]
+                    start <- i + 1
 
-                    for c = b + 1 to row.Length - 10 do
-                        let jolts = jolts * 10 + row[c]
-
-                        for d = c + 1 to row.Length - 9 do
-                            let jolts = jolts * 10 + row[d]
-
-                            for e = d + 1 to row.Length - 8 do
-                                let jolts = jolts * 10 + row[e]
-
-                                for f = e + 1 to row.Length - 7 do
-                                    let jolts = jolts * 10 + row[f]
-
-                                    for g = f + 1 to row.Length - 6 do
-                                        let jolts = jolts * 10 + row[g]
-
-                                        for h = g + 1 to row.Length - 5 do
-                                            let jolts = jolts * 10 + row[h]
-
-                                            for i = h + 1 to row.Length - 4 do
-                                                let jolts = jolts * 10 + row[i] |> uint64
-
-                                                for j = i + 1 to row.Length - 3 do
-                                                    let jolts = jolts * 10UL + uint64 row[j]
-
-                                                    for k = j + 1 to row.Length - 2 do
-                                                        let jolts = jolts * 10UL + uint64 row[k]
-
-                                                        for l = k + 1 to row.Length - 1 do
-                                                            let jolts = jolts * 10UL + uint64 row[l]
-
-                                                            if jolts > maxJolts then
-                                                                maxJolts <- jolts
-                                                                maxA <- row[a]
-
-        maxJolts)
+        // convert to 12-digit number
+        ds |> Array.fold (fun acc d -> acc * 10UL + uint64 d) 0UL //|> dump
+    )
 
 executePuzzle "Part 1 sample" (fun () -> part1 sample1) 357
 executePuzzle "Part 1 finale" (fun () -> part1 data) 17142
 
 executePuzzle "Part 2 sample" (fun () -> part2 sample2) 3121910778619UL
-executePuzzle "Part 2 finale" (fun () -> part2 data) 0UL
+executePuzzle "Part 2 finale" (fun () -> part2 data) 169935154100102UL
